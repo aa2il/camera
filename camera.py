@@ -59,13 +59,18 @@ class VIDEO_CAMERA():
 
     # Read the stream
     def run_camera(self):
+
+        # Create window to display imagery
+        # Do it this way so we can resize it manually if we want to
+        cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
+        first_time=True
         
         while(self.cap.isOpened()):
             ret, img = self.cap.read()
     
             # Put frame operations here - e.g. resize
             #print('Original Dimensions : ',img.shape)
-            sc = .75 # 1 # 0.5
+            sc = 1 # 0.5
             width = int(sc*img.shape[1])
             height = int(sc*img.shape[0])
             dim = (width, height)
@@ -82,6 +87,11 @@ class VIDEO_CAMERA():
                     
             # Display the frame
             cv2.imshow('frame', self.img2)
+            if first_time:
+                cv2.resizeWindow('frame',width,height)
+                #sz=cv2.getWindowImageRect('frame')
+                #print(sz,width,height)
+                first_time=False
 
             # Enable mouse callback
             cv2.setMouseCallback('frame', self.MouseCB)
