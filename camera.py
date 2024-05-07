@@ -67,12 +67,17 @@ class VIDEO_CAMERA():
         
         while(self.cap.isOpened()):
             ret, img = self.cap.read()
-    
+            
             # Put frame operations here - e.g. resize
             #print('Original Dimensions : ',img.shape)
-            sc = 1 # 0.5
-            width = int(sc*img.shape[1])
-            height = int(sc*img.shape[0])
+            try:
+                # Crashed once with img==None error?!
+                sc = 1 # 0.5
+                width = int(sc*img.shape[1])
+                height = int(sc*img.shape[0])
+            except:
+                print('Whoops - missed image???!!!')
+                continue
             dim = (width, height)
             self.img2 = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
             #print('Resized Dimensions : ',img2.shape)
