@@ -1,12 +1,12 @@
 #! /usr/bin/python3 -u
-############################################################################################
+################################################################################
 #
 # Camera - Rev 0.1
 # Copyright (C) 2024 by Joseph B. Attili, aa2il AT arrl DOT net
 #
 # Simple app to view and control Tapo C500 Video Camera.
 #
-############################################################################################
+################################################################################
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,15 +18,16 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-############################################################################################
+################################################################################
 
+import argparse
 import sys
 import cv2
 from tapoC500 import TapoC500
 from time import time
 from settings import CONFIG_PARAMS
 
-############################################################################################
+################################################################################
 
 class VIDEO_CAMERA():
     def __init__(self,P):
@@ -64,20 +65,29 @@ class VIDEO_CAMERA():
         # Do it this way so we can resize it manually if we want to
         cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
         first_time=True
-        
+
         while(self.cap.isOpened()):
             ret, img = self.cap.read()
             
             # Put frame operations here - e.g. resize
             #print('Original Dimensions : ',img.shape)
             try:
-                # Crashed once with img==None error?!
+                # First, compute new image size ...
                 sc = 1 # 0.5
                 width = int(sc*img.shape[1])
                 height = int(sc*img.shape[0])
+                missed=0
             except:
-                print('Whoops - missed image???!!!')
-                continue
+                # If the camera has been turned off, try again
+                # If too many retries, exit gracefully
+                missed+=1
+                print('Whoops - missed image???!!!',missed)
+                if missed<50:
+                    continue
+                else:
+                    break
+
+            # Do the actual resizing
             dim = (width, height)
             self.img2 = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
             #print('Resized Dimensions : ',img2.shape)
@@ -120,6 +130,8 @@ class VIDEO_CAMERA():
         self.cap.release()
         cv2.destroyAllWindows()
 
+    ############################################################################
+    
     def MouseCB(self,event, x, y, flags, param):
 
         if event == cv2.EVENT_MOUSEMOVE:
@@ -137,7 +149,7 @@ class VIDEO_CAMERA():
 
         elif event == cv2.EVENT_LBUTTONDBLCLK:
 
-            print('MouseCB: Left Button DOUBLE CLOCK:',x, y, flags, param)
+            #print('MouseCB: Left Button DOUBLE CLOCK:',x, y, flags, param)
             w=self.img2.shape[1]
             h=self.img2.shape[0]
             center=( int(w/2), int(h/2) )
@@ -148,7 +160,7 @@ class VIDEO_CAMERA():
         
         elif event == cv2.EVENT_LBUTTONDOWN:
 
-            print('MouseCB: Left Button DOWN:',x, y, flags, param)
+            #print('MouseCB: Left Button DOWN:',x, y, flags, param)
             self.LEFT_DOWN=True
             self.box1=(x,y)
             self.box2=self.box1
@@ -157,7 +169,7 @@ class VIDEO_CAMERA():
     
         elif event == cv2.EVENT_LBUTTONUP:
 
-            print('MouseCB: Left Button UP:',x, y, flags, param)
+            #print('MouseCB: Left Button UP:',x, y, flags, param)
             self.LEFT_DOWN=False
             self.box2=(x,y)
             #t2=time()
@@ -168,13 +180,14 @@ class VIDEO_CAMERA():
 
         elif event==cv2.EVENT_MOUSEWHEEL:
 
-            print('MouseCB: WHEEL:',x, y, flags, param)
+            #print('MouseCB: WHEEL:',x, y, flags, param)
             if flags>0:
                 print('Zoom in')
             else:
                 print('Zoom out')
                 
-
+    ############################################################################
+    
     def DrawBox(self):
     
         p1 = (self.box1[0],self.box1[1])
@@ -212,13 +225,20 @@ class VIDEO_CAMERA():
         cv2.line(self.img2, p1, p2, c, thickness=th)
         cv2.line(self.img2, p3, p4, c, thickness=th)
 
-############################################################################################
+################################################################################
         
 if __name__ == '__main__':
 
+    # Command line args
+    arg_proc = argparse.ArgumentParser()
+    arg_proc.add_argument("-cam", help="Camera number",
+                          type=int,default=1)
+    args = arg_proc.parse_args()
+
     # Handle resource file (settings)
     ATTRS=['IP','USER','PASSWORD']
-    P=CONFIG_PARAMS('.camera1rc',ATTRS)
+    rcfile = '.camera'+str(args.cam)+'rc'
+    P=CONFIG_PARAMS(rcfile,ATTRS)
     print(P)
     print(P.SETTINGS)
     
