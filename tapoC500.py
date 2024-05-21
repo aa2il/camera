@@ -4,8 +4,7 @@
 # tapoC500.py - Rev 0.1
 # Copyright (C) 2024 by Joseph B. Attili, aa2il AT arrl DOT net
 #
-# PTZ control for Tapo C500 Camera.  This camera is stated to be an ONVIF
-# Profile S device.
+# PTZ control for Tapo C500 Camera.  This camera is an ONVIF Profile S device.
 #
 # pip3 install onvif_zeep
 # pip3 install opencv-python
