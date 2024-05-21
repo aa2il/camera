@@ -1,5 +1,5 @@
 /__pycache__/*
-/pytapo/*
+/pytapo/__pycache__/*
 /save*/*
 /work/*
 /onvif/__pycache__/*
