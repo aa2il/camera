@@ -6,8 +6,12 @@
 #
 # PTZ control for Tapo C500 Camera.  This camera is an ONVIF Profile S device.
 #
-# pip3 install onvif_zeep
-# pip3 install opencv-python
+# Notes:
+#      - To change wifi network, use app to remove device which will allow you
+#        to start from scratch
+#      - May or may not need to install these:
+#              pip3 install onvif_zeep
+#              pip3 install opencv-python
 #
 # Useful websites for determining how to do this:
 # https://www.onvif.org/onvif/ver20/util/operationIndex.html

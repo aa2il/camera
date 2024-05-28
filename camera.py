@@ -267,23 +267,37 @@ class VIDEO_DOWNLOADER():
         print('\nBasic Camera Info:',self.tapo.basicInfo)
         #sys.exit(0)
 
+        self.get_recording_list()
+        #sys.exit(0)
+
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.download_async())
-        
-    async def download_async(self):
+
+    def get_recording_list(self):
         print("\nGetting recordings...")
-        recordings = self.tapo.getRecordings(self.date)
-        print('\nRecordings=',recordings)
-        timeCorrection = self.tapo.getTimeCorrection()
-        print('\nTime Correction=',timeCorrection)
-    
-        for recording in recordings:
-            print('\nDownloading',recording,' ...')
-            for key in recording:
+        self.recordings = self.tapo.getRecordings(self.date)
+        print('\nRecordings=',self.recordings)
+        self.timeCorrection = self.tapo.getTimeCorrection()
+        print('\nTime Correction=',self.timeCorrection)
+
+        total=0
+        for rec in self.recordings:
+            for key in rec:
+                t1=rec[key]["startTime"]
+                t2=rec[key]["endTime"]
+                dt=t2-t1
+                total+=dt
+                print('\t',key,t1,t2,dt,dt/60)
+        print('\nTotal of',total,' secs available =',total/60.,'min =',total/3600.,'hours')
+            
+    async def download_async(self):
+        for rec in self.recordings:
+            print('\nDownloading',rec,' ...')
+            for key in rec:
                 print('\t',key)
                 downloader = Downloader( self.tapo,
-                                         recording[key]["startTime"],recording[key]["endTime"],
-                                         timeCorrection,self.outputDir,
+                                         rec[key]["startTime"],rec[key]["endTime"],
+                                         self.timeCorrection,self.outputDir,
                                          None,False,self.window_size)
                 async for status in downloader.download():
                     statusString = status["currentAction"] + " " + status["fileName"]
