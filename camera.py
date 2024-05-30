@@ -25,6 +25,8 @@
 
 import argparse
 import sys
+#import os
+import subprocess
 import cv2
 from tapoC500 import TapoC500
 from time import time
@@ -311,6 +313,25 @@ class VIDEO_DOWNLOADER():
 
 
 ################################################################################
+
+# Function to look for a camera on the LAN
+def find_camera(mac):
+    print('Looking for camera with MAC',mac,'...')
+    #
+    # The linux command to find a device on the LAN with specified MAC address:
+    # ip neighbour - lists most devices on the LAN - doesn't show this host?
+    # Cameras connected to one of the WiFi extenders show up twice - once with
+    # the IP of the extender and a second time with the actual IP we want.
+    #
+    cmd="ip neighbour | fgrep "+mac+" | tail -1 | cut -f 1 -d ' '"
+    print('cmd=',cmd)
+    #ip=os.popen(cmd).read()
+    ip=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE).stdout.read()
+    print('ip=',ip)
+    #sys.exit(0)
+    return ip.decode().strip()
+        
+################################################################################
         
 if __name__ == '__main__':
 
@@ -327,7 +348,7 @@ if __name__ == '__main__':
     args = arg_proc.parse_args()
 
     # Handle resource file (settings)
-    ATTRS=['IP','USER','PASSWORD','CLOUD_USER','CLOUD_PASSWORD']
+    ATTRS=['MAC','IP','USER','PASSWORD','CLOUD_USER','CLOUD_PASSWORD']
     rcfile = '.camera'+str(args.cam)+'rc'
     P=CONFIG_PARAMS(rcfile,ATTRS)
     print(P)
@@ -338,6 +359,15 @@ if __name__ == '__main__':
         P.SettingsWin = SETTINGS_GUI(None,P,ATTRS)
         mainloop()
         sys.exit(0)
+
+    # Try to find the camera
+    if True:
+        ip=find_camera(P.SETTINGS['MY_MAC'])
+        if P.SETTINGS['MY_IP']!=ip:
+            print("Whoops - LAN device IP doesn't match settings:")
+            print(ip,P.SETTINGS['MY_IP'])
+            print('Fix this!!!')
+            sys.exit(0)
 
     # Download videos
     if args.download!=None:
