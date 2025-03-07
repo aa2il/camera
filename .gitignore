@@ -5,3 +5,5 @@
 /onvif/__pycache__/*
 /DIFFS
 /2024*mp4
+/#*
+/pytapo/media_stream/__pycache__/*

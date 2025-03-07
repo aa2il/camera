@@ -1,4 +1,7 @@
-#! /usr/bin/python3 -u
+#! /home/joea/miniconda3/envs/py3_10/bin/python -u
+#
+# NEW: /home/joea/miniconda3/envs/py3_10/bin/python -u
+# OLD: /usr/bin/python3 -u 
 ################################################################################
 #
 # Camera - Rev 0.1

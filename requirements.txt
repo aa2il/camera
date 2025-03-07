@@ -1,0 +1,28 @@
+###############################################################################
+#
+# This was how this used to work:
+#     pip3 install -r requirements.txt
+#
+# but, in true linux fashion, it was broken in Python 3.11 - great jobs guys!
+#
+# See README.md for "sandbox" instructions
+#
+###############################################################################
+
+# These are the things we definitely need
+pycrypto
+onvif_zeep
+opencv-python
+rtp
+psutil
+
+# Not sure what the status of these libs are but seem to be needed also - TBD
+crypto
+feedparser
+pyserial
+pillow
+beautifulsoup4
+
+
+
+
