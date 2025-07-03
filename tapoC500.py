@@ -2,7 +2,7 @@
 ############################################################################################
 #
 # tapoC500.py - Rev 0.1
-# Copyright (C) 2024 by Joseph B. Attili, aa2il AT arrl DOT net
+# Copyright (C) 2024-5 by Joseph B. Attili, joe DOT aa2il AT gmail DOT com
 #
 # PTZ control for Tapo C500 Camera.  This camera is an ONVIF Profile S device.
 #
@@ -81,6 +81,7 @@ class TapoC500():
 
         # Get PTZ configuration options
         request = self.ptz.create_type('GetConfigurationOptions')
+        print('PTZ request=',request)
         request.ConfigurationToken = self.media_profile.PTZConfiguration.token
         ptz_configuration_options = self.ptz.GetConfigurationOptions(request)
         print('\nrequest=',request)

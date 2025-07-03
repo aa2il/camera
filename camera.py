@@ -1,11 +1,11 @@
-#! /home/joea/miniconda3/envs/py3_10/bin/python -u
+#!/usr/bin/env -S uv run --script
 #
 # NEW: /home/joea/miniconda3/envs/py3_10/bin/python -u
 # OLD: /usr/bin/python3 -u 
 ################################################################################
 #
 # Camera - Rev 0.1
-# Copyright (C) 2024 by Joseph B. Attili, aa2il AT arrl DOT net
+# Copyright (C) 2024-5 by Joseph B. Attili, aa2il AT arrl DOT net
 #
 # Simple app to view, control and download videos for Tapo C500 Video Camera.
 #
@@ -43,6 +43,23 @@ import os
 
 ################################################################################
 
+# Structure to contain config params
+class CAM_CONFIG_PARAMS:
+    def __init__(self,fname,CAMERA=None):
+        rcfile=os.path.expanduser(fname)
+        with open(rcfile) as json_data_file:
+            cams = json.load(json_data_file)
+            print(cams)
+            print(len(cams))
+            for cam in cams:
+                if cam['MY_CAMERA']==CAMERA:
+                    self.SETTINGS=cam
+                    break
+            else:
+                self.SETTINGS=cams[0]         # Default to first camera
+
+################################################################################
+
 class VIDEO_CAMERA():
     def __init__(self,P):
 
@@ -63,6 +80,7 @@ class VIDEO_CAMERA():
         print('Setting up Video Camera - Press ESCAPE to exit ...')
 
         # Open PTZ controls
+        print('If we get failure here, probably need to update camera firmware via Tapo app on phone or tablet.')
         self.ptz = TapoC500(IP,USER,PASSWORD)
 
         # Open camera video stream
@@ -77,7 +95,9 @@ class VIDEO_CAMERA():
 
         # Create window to display imagery
         # Do it this way so we can resize it manually if we want to
-        cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
+        #cam_name='frame'
+        cam_name=self.P.SETTINGS['MY_CAMERA']
+        cv2.namedWindow(cam_name, cv2.WINDOW_NORMAL)
         first_time=True
 
         now = datetime.now()
@@ -119,16 +139,16 @@ class VIDEO_CAMERA():
                     self.DrawCrossHairs()
                     
             # Display the frame
-            cv2.imshow('frame', self.img2)
+            cv2.imshow(cam_name, self.img2)
             if first_time:
-                cv2.resizeWindow('frame',width,height)
-                #sz=cv2.getWindowImageRect('frame')
+                cv2.resizeWindow(cam_name,width,height)
+                #sz=cv2.getWindowImageRect(cam_name)
                 #print(sz,width,height)
                 first_time=False
 
             # Enable mouse callback
-            cv2.setMouseCallback('frame', self.MouseCB)
-            
+            cv2.setMouseCallback(cam_name, self.MouseCB)
+
             # Check for clean exit
             ch = cv2.waitKey(20) # & 0xFF
             if ch>0:
@@ -143,6 +163,11 @@ class VIDEO_CAMERA():
                     self.ptz.rel_move(self.step,0)
                 elif ch in [27,ord('q'),ord('Q')]:
                     break
+            
+            # Check for click on big X to exit also
+            if cv2.getWindowProperty(cam_name,cv2.WND_PROP_VISIBLE) <= 0:
+                print('Blah blah blah')
+                break        
             
         # Clean-up and quit
         print('Cleaning up ...')
@@ -166,7 +191,8 @@ class VIDEO_CAMERA():
             else:
                 self.cross_hairs=(x,y)
                 #DrawCrossHairs(imgCopy,cross_hairs,cross_size)
-            cv2.imshow('frame', imgCopy)
+            cam_name=self.P.SETTINGS['MY_CAMERA']
+            cv2.imshow(cam_name, imgCopy)
 
         elif event == cv2.EVENT_LBUTTONDBLCLK:
 
@@ -351,8 +377,10 @@ if __name__ == '__main__':
 
     # Command line args
     arg_proc = argparse.ArgumentParser()
-    arg_proc.add_argument("-cam", help="Camera number",
-                          type=int,default=1)
+    #arg_proc.add_argument("-cam", help="Camera number",
+    #                      type=int,default=1)
+    arg_proc.add_argument("-cam", help="Camera Name",
+                          type=str,default=None)
     arg_proc.add_argument("-download", help="Download videos for given date YYYYMMDD",
                           type=str,default=None)
     arg_proc.add_argument('-settings', action='store_true',
@@ -360,13 +388,23 @@ if __name__ == '__main__':
     args = arg_proc.parse_args()
 
     # Handle resource file (settings)
-    ATTRS=['MAC','IP','USER','PASSWORD','CLOUD_USER','CLOUD_PASSWORD']
-    rcfile = '.camera'+str(args.cam)+'rc'
-    P=CONFIG_PARAMS(rcfile,ATTRS)
-    print(P)
+    if False:
+        # Old - Single camera per rc file
+        ATTRS=['MAC','IP','USER','PASSWORD','CLOUD_USER','CLOUD_PASSWORD']
+        rcfile = '.camera'+str(args.cam)+'rc'
+        P=CONFIG_PARAMS(rcfile,ATTRS)
+    else:
+        # Much better - single rc file for all cams
+        import json
+        P=CAM_CONFIG_PARAMS("~/.camerarc",args.cam)
+    
+    #print(P)
     print(P.SETTINGS)
+    print(P.SETTINGS['MY_IP'])
+    #sys.exit(0)
 
     # Open dialog to change camera settings
+    # Need to revise this for multiple cams in single rc file
     if args.settings:
         P.SettingsWin = SETTINGS_GUI(None,P,ATTRS)
         mainloop()

@@ -1,27 +1,43 @@
 ###############################################################################
 #
-# This was how this used to work:
+# Under uv:
+#     rm -r .venv/ pyproject.toml .python-version uv.lock
+#     uv init
+#     uv add -r requirements.txt
+#
+# If we wish to run this script from another directory, embed the dependencies
+# in the script itself:
+#
+#     uv add --script camera.py -r requirements.txt
+#
+# This was how this all used to work:
 #     pip3 install -r requirements.txt
 #
-# but, in true linux fashion, it was broken in Python 3.11 - great jobs guys!
+# We also need the "libs" and "data" directories which are available in this
+# repository.
 #
-# See README.md for "sandbox" instructions
+# Set the PYTHONPATH environment variable to point to where "libs" is installed,
+# e.g. for csh/tcsh:
 #
-###############################################################################
+#     setenv PYTHONPATH $HOME/Python/libs
+#
+##############################################################################
 
 # These are the things we definitely need
-pycrypto
+#pycrypto             # Doesn't have Crypto.Util.Paddling anymore?
+pycryptodome          # Drop in replacement for pycrypto - seems to work!
 onvif_zeep
 opencv-python
 rtp
 psutil
+#json5
 
-# Not sure what the status of these libs are but seem to be needed also - TBD
-crypto
-feedparser
-pyserial
-pillow
-beautifulsoup4
+# Not sure what the status of these libs is but at one points needed them also - TBD
+#crypto
+#feedparser
+pyserial                  # Bx of settings - might be able to eleinate this
+#pillow
+#beautifulsoup4
 
 
 

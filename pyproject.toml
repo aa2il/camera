@@ -1,0 +1,15 @@
+[project]
+name = "camera"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "json5>=0.12.0",
+    "onvif-zeep>=0.2.12",
+    "opencv-python>=4.11.0.86",
+    "psutil>=7.0.0",
+    "pycryptodome>=3.23.0",
+    "pyserial>=3.5",
+    "rtp>=0.0.4",
+]
