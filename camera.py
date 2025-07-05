@@ -5,7 +5,7 @@
 ################################################################################
 #
 # Camera - Rev 0.1
-# Copyright (C) 2024-5 by Joseph B. Attili, aa2il AT arrl DOT net
+# Copyright (C) 2024-5 by Joseph B. Attili, joe DOT aa2il AT gmail DOT com
 #
 # Simple app to view, control and download videos for Tapo C500 Video Camera.
 #
