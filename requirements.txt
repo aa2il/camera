@@ -31,6 +31,10 @@ opencv-python
 rtp
 psutil
 #json5
+#scapy-python3
+scapy
+pytapo
+aiofiles
 
 # Not sure what the status of these libs is but at one points needed them also - TBD
 #crypto

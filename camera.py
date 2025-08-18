@@ -12,6 +12,12 @@
 # The code for downloading is based on pytapo by Juraj Nyiri found at 
 #         https://github.com/JurajNyiri
 #
+# Supposed camera ports:
+#   443  - HTTPS for control of the camera (services)
+#   8800 - Proprietary protocol for video streaming and recordings downloads (if available)
+#   554  - RTSP to fetch video stream from the camera (if available)
+#   2020 - ONVIF to track detected movement via a binary sensor (if available)
+#
 ################################################################################
 #
 # This program is free software: you can redistribute it and/or modify
@@ -28,7 +34,8 @@
 
 import argparse
 import sys
-#import os
+import os
+import datetime
 import subprocess
 import cv2
 from tapoC500 import TapoC500
@@ -39,7 +46,6 @@ from datetime import datetime
 from pytapo import Tapo
 from pytapo.media_stream.downloader import Downloader
 import asyncio
-import os
 
 ################################################################################
 
@@ -47,16 +53,26 @@ import os
 class CAM_CONFIG_PARAMS:
     def __init__(self,fname,CAMERA=None):
         rcfile=os.path.expanduser(fname)
+        self.cameras=[]
         with open(rcfile) as json_data_file:
             cams = json.load(json_data_file)
             print(cams)
             print(len(cams))
             for cam in cams:
+                print(cam['MY_CAMERA'])
+                self.cameras.append(cam['MY_CAMERA'])
                 if cam['MY_CAMERA']==CAMERA:
                     self.SETTINGS=cam
                     break
             else:
-                self.SETTINGS=cams[0]         # Default to first camera
+                if CAMERA==None:
+                    self.SETTINGS=cams[0]         # Default to first camera
+                    print('\nCamera not speficied - Defaulting to',self.SETTINGS['MY_CAMERA'],'\n')
+                else:
+                    print('\nUnable to find camera',CAMERA,'\n')
+                    print('Known cameras:',self.cameras)
+                    print('cams=',cams)
+                    sys.exit(0)
 
 ################################################################################
 
@@ -165,9 +181,14 @@ class VIDEO_CAMERA():
                     break
             
             # Check for click on big X to exit also
-            if cv2.getWindowProperty(cam_name,cv2.WND_PROP_VISIBLE) <= 0:
-                print('Blah blah blah')
-                break        
+            try:
+                #print(cam_name)
+                if cv2.getWindowProperty(cam_name,cv2.WND_PROP_VISIBLE) <= 0:
+                    print('Blah blah blah')
+                    break
+            except:
+                print('Bailing out!')
+                break
             
         # Clean-up and quit
         print('Cleaning up ...')
@@ -281,22 +302,34 @@ class VIDEO_DOWNLOADER():
         self.date = date           # date to download recordings for in format YYYYMMDD
         
         self.host = P.SETTINGS['MY_IP']
-        self.user_cloud = P.SETTINGS['MY_CLOUD_USER']
-        self.password_cloud = P.SETTINGS['MY_CLOUD_PASSWORD']
+        self.user = P.SETTINGS['MY_USER']
+        #self.user = P.SETTINGS['MY_CLOUD_USER']
+        #self.user = "admin" 
+        #self.user = "joeattili" 
+        self.password = P.SETTINGS['MY_PASSWORD']
+        self.password2 = P.SETTINGS['MY_CLOUD_PASSWORD']
+        self.ctrl_port = 443
+        #self.ctrl_port = 2020
+        #self.ctrl_port = 8800
         
         self.window_size = 50
 
         if True:
-            print('host=',self.host)
-            print('user=',self.user_cloud)
-            print('password=',self.password_cloud)
+            print('host=',self.host,len(self.host))
+            print('user=',self.user,len(self.user))
+            print('password=',self.password,len(self.password))
+            print('password2=',self.password2)
             #sys.exit(0)
         
         print("Connecting to camera...")
-        self.tapo = Tapo(self.host, self.user_cloud, self.password_cloud, self.password_cloud)
+        self.tapo = Tapo(self.host, self.user, self.password, self.password,
+                         printDebugInformation=True,
+                         controlPort=self.ctrl_port,
+                         redactConfidentialInformation=False)
+        sys.exit(0)
         print('Getting basic data...')
         print('\nBasic Camera Info:',self.tapo.basicInfo)
-        #sys.exit(0)
+        sys.exit(0)
 
         self.get_recording_list()
         #sys.exit(0)
@@ -382,7 +415,7 @@ if __name__ == '__main__':
     arg_proc.add_argument("-cam", help="Camera Name",
                           type=str,default=None)
     arg_proc.add_argument("-download", help="Download videos for given date YYYYMMDD",
-                          type=str,default=None)
+                          type=str,default=None,nargs="*")
     arg_proc.add_argument('-settings', action='store_true',
                               help='Update Camera Settings')
     args = arg_proc.parse_args()
@@ -421,7 +454,13 @@ if __name__ == '__main__':
 
     # Download videos
     if args.download!=None:
-        downloader=VIDEO_DOWNLOADER(P,args.download)
+        print('dl=',args.download)
+        if len(args.download)>0:
+            date = args.download[0]
+        else:
+            date=datetime.strftime(datetime.now(),'%Y%m%d')
+        print('date=',date)
+        downloader=VIDEO_DOWNLOADER(P,date)
         sys.exit(0)
 
     # View and control camera in real-time
