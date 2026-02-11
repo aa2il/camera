@@ -46,6 +46,7 @@ from datetime import datetime
 from pytapo import Tapo
 from pytapo.media_stream.downloader import Downloader
 import asyncio
+import json
 
 ################################################################################
 
@@ -56,8 +57,11 @@ class CAM_CONFIG_PARAMS:
         self.cameras=[]
         with open(rcfile) as json_data_file:
             cams = json.load(json_data_file)
-            print(cams)
+
+            pretty_cams = json.dumps(cams, indent=4)
+            print(pretty_cams)
             print(len(cams))
+            
             for cam in cams:
                 print(cam['MY_CAMERA'])
                 self.cameras.append(cam['MY_CAMERA'])
@@ -73,6 +77,11 @@ class CAM_CONFIG_PARAMS:
                     print('Known cameras:',self.cameras)
                     print('cams=',cams)
                     sys.exit(0)
+
+        # Re-write into "pretty" format
+        #with open(rcfile,'w') as json_data_file:
+        #    json.dump(cams, json_data_file, indent=4)
+        #sys.exit(0)
 
 ################################################################################
 
@@ -428,7 +437,6 @@ if __name__ == '__main__':
         P=CONFIG_PARAMS(rcfile,ATTRS)
     else:
         # Much better - single rc file for all cams
-        import json
         P=CAM_CONFIG_PARAMS("~/.camerarc",args.cam)
     
     #print(P)
@@ -439,6 +447,8 @@ if __name__ == '__main__':
     # Open dialog to change camera settings
     # Need to revise this for multiple cams in single rc file
     if args.settings:
+        print('*** NEED TO REVISIT THIS CODE FOR MULTIPLE CAMERAS !!! ***')
+        sys.exit(0)
         P.SettingsWin = SETTINGS_GUI(None,P,ATTRS)
         mainloop()
         sys.exit(0)
