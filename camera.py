@@ -1,13 +1,13 @@
 #!/usr/bin/env -S uv run --script
 #
-# NEW: /home/joea/miniconda3/envs/py3_10/bin/python -u
 # OLD: /usr/bin/python3 -u 
 ################################################################################
 #
-# Camera - Rev 0.1
-# Copyright (C) 2024-5 by Joseph B. Attili, joe DOT aa2il AT gmail DOT com
+# Camera - Rev 1.0
+# Copyright (C) 2024-6 by Joseph B. Attili, joe DOT aa2il AT gmail DOT com
 #
 # Simple app to view, control and download videos for Tapo C500 Video Camera.
+# Also showing signs of working with esp32cam.
 #
 # The code for downloading is based on pytapo by Juraj Nyiri found at 
 #         https://github.com/JurajNyiri
@@ -39,7 +39,7 @@ import datetime
 import subprocess
 import cv2
 from tapoC500 import TapoC500
-from time import time
+import time
 from settings import CONFIG_PARAMS,SETTINGS_GUI
 from datetime import datetime
 
@@ -92,25 +92,41 @@ class VIDEO_CAMERA():
         self.step=0.1
 
         IP=P.SETTINGS['MY_IP']
-        USER=P.SETTINGS['MY_USER']
-        PASSWORD=P.SETTINGS['MY_PASSWORD']
+        self.CAM_TYPE=P.SETTINGS['CAM_TYPE']
+        if 'MY_USER' in P.SETTINGS:
+            USER=P.SETTINGS['MY_USER']
+            PASSWORD=P.SETTINGS['MY_PASSWORD']
+            STREAM=None
+        else:
+            USER=None
+            PASSWORD=None
+            STREAM=P.SETTINGS['STREAM']
 
         self.cross_hairs=None
         self.cross_size=50
         self.box1=None
         self.box2=None
         self.LEFT_DOWN=False
+        if 'ROTATE' in P.SETTINGS:
+            self.rotation=P.SETTINGS['ROTATE']
+        else:
+            self.rotation=None
         
         # See opencv.org for details
         print('Setting up Video Camera - Press ESCAPE to exit ...')
 
         # Open PTZ controls
-        print('If we get failure here, probably need to update camera firmware via Tapo app on phone or tablet.')
-        self.ptz = TapoC500(IP,USER,PASSWORD)
+        if self.CAM_TYPE=='Tapo':
+            print('If we get failure here, probably need to update camera firmware via Tapo app on phone or tablet.')
+            self.ptz = TapoC500(IP,USER,PASSWORD)
+            self.STREAM_URL=self.ptz.RTSP_URL
+        else:
+            self.ptz = None
+            self.STREAM_URL='http://'+IP+STREAM
 
         # Open camera video stream
-        print('Opening video stream ...',self.ptz.RTSP_URL)
-        self.cap = cv2.VideoCapture(self.ptz.RTSP_URL)
+        print('Opening video stream ...',self.STREAM_URL)
+        self.cap = cv2.VideoCapture(self.STREAM_URL)
 
         print('And away we go!')
         self.run_camera()
@@ -127,15 +143,31 @@ class VIDEO_CAMERA():
 
         now = datetime.now()
         print('Camera started at',now)
-        
+        t1 = time.perf_counter()
+
+        nframes=0
+        nrestarts=0
         while(self.cap.isOpened()):
             ret, img = self.cap.read()
+            nframes+=1
+            if nframes==1:
+                print('Original Dimensions : ',img.shape)
+            if nframes % 100 ==1:
+                t2 = time.perf_counter()
+                fps = round( 100./(t2-t1) , 1)
+                print('Read image',nframes,'\t',fps,'fps\tnrestarts=',nrestarts)
+                t1 = t2
             
             # Put frame operations here - e.g. resize
-            #print('Original Dimensions : ',img.shape)
             try:
                 # First, compute new image size ...
-                sc = 1 # 0.5
+                if self.CAM_TYPE=='Tapo':
+                    sc = 1 # 0.5
+                else:
+                    if img.shape[1]<=640:
+                        sc=2
+                    else:
+                        sc=1
                 width = int(sc*img.shape[1])
                 height = int(sc*img.shape[0])
                 missed=0
@@ -143,18 +175,31 @@ class VIDEO_CAMERA():
                 # If the camera has been turned off, try again
                 # If too many retries, exit gracefully
                 missed+=1
-                print('Whoops - missed image???!!!',missed)
-                if missed<50:
+                print('Whoops - missed image???!!!  nframes=',nframes,'\tmissed=',missed)
+                if missed<20:
                     continue
                 else:
-                    print('*** Camera probably disconeected - bailing out! ***')
-                    break
+                    print('*** Camera probably disconeected ***')
+                    nrestarts+=1
+                    if nrestarts<50:
+                        print('Re-opening video stream in 10 secs ...',self.STREAM_URL)
+                        self.cap.release()
+                        time.sleep(10)
+                        self.cap = cv2.VideoCapture(self.STREAM_URL)
+                        continue
+                    else:
+                        print('*** Too many restarts - Bailing out! ***')
+                        break
 
-            # Do the actual resizing
+            # Do the actual resizing & rotation
             dim = (width, height)
             self.img2 = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
+            if self.rotation=='CW':
+                self.img2 = cv2.rotate(self.img2, cv2.ROTATE_90_CLOCKWISE)
+            elif self.rotation=='CCW':
+                self.img2 = cv2.rotate(self.img2, cv2.ROTATE_90_COUNTERCLOCKWISE)
             #print('Resized Dimensions : ',img2.shape)
-
+            
             # Add box/cross-hairs
             if self.LEFT_DOWN:
                 self.DrawBox()
@@ -241,16 +286,12 @@ class VIDEO_CAMERA():
             self.LEFT_DOWN=True
             self.box1=(x,y)
             self.box2=self.box1
-            #t1=time()
-            #print(t1)
     
         elif event == cv2.EVENT_LBUTTONUP:
 
             #print('MouseCB: Left Button UP:',x, y, flags, param)
             self.LEFT_DOWN=False
             self.box2=(x,y)
-            #t2=time()
-            #print(t2)
 
             if self.box2==self.box1 and False:
                 print('Quick click!')
@@ -419,8 +460,6 @@ if __name__ == '__main__':
 
     # Command line args
     arg_proc = argparse.ArgumentParser()
-    #arg_proc.add_argument("-cam", help="Camera number",
-    #                      type=int,default=1)
     arg_proc.add_argument("-cam", help="Camera Name",
                           type=str,default=None)
     arg_proc.add_argument("-download", help="Download videos for given date YYYYMMDD",
@@ -429,15 +468,8 @@ if __name__ == '__main__':
                               help='Update Camera Settings')
     args = arg_proc.parse_args()
 
-    # Handle resource file (settings)
-    if False:
-        # Old - Single camera per rc file
-        ATTRS=['MAC','IP','USER','PASSWORD','CLOUD_USER','CLOUD_PASSWORD']
-        rcfile = '.camera'+str(args.cam)+'rc'
-        P=CONFIG_PARAMS(rcfile,ATTRS)
-    else:
-        # Much better - single rc file for all cams
-        P=CAM_CONFIG_PARAMS("~/.camerarc",args.cam)
+    # Handle resource file (settings) - there is a single rc file for all cams
+    P=CAM_CONFIG_PARAMS("~/.camerarc",args.cam)
     
     #print(P)
     print(P.SETTINGS)
