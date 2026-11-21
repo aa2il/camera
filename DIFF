@@ -18,7 +18,7 @@
 #set ROOT="/mnt/sproul"
 set ROOT="/mnt/Calvin"
 #set ROOT="/mnt/Luther"
-#set ROOT="/mnt/marconi"
+set ROOT="/mnt/marconi"
 if( !(-e $ROOT) )then
     set ROOT="${ROOT}2"
 endif

@@ -194,10 +194,12 @@ class VIDEO_CAMERA():
             # Do the actual resizing & rotation
             dim = (width, height)
             self.img2 = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
-            if self.rotation=='CW':
+            if self.rotation in ['CW','90']:
                 self.img2 = cv2.rotate(self.img2, cv2.ROTATE_90_CLOCKWISE)
-            elif self.rotation=='CCW':
+            elif self.rotation in ['CCW','-90']:
                 self.img2 = cv2.rotate(self.img2, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            elif self.rotation=='180':
+                self.img2 = cv2.rotate(self.img2, cv2.ROTATE_180)
             #print('Resized Dimensions : ',img2.shape)
             
             # Add box/cross-hairs
@@ -223,13 +225,13 @@ class VIDEO_CAMERA():
             ch = cv2.waitKey(20) # & 0xFF
             if ch>0:
                 print('ch=',ch)
-                if ch==82:
+                if ch==82 and self.ptz:
                     self.ptz.rel_move(0,-self.step)
-                elif ch==84:
+                elif ch==84 and self.ptz:
                     self.ptz.rel_move(0,self.step)
-                elif ch==81:
+                elif ch==81 and self.ptz:
                     self.ptz.rel_move(-self.step,0)
-                elif ch==83:
+                elif ch==83 and self.ptz:
                     self.ptz.rel_move(self.step,0)
                 elif ch in [27,ord('q'),ord('Q')]:
                     break
@@ -271,14 +273,15 @@ class VIDEO_CAMERA():
 
         elif event == cv2.EVENT_LBUTTONDBLCLK:
 
-            #print('MouseCB: Left Button DOUBLE CLOCK:',x, y, flags, param)
-            w=self.img2.shape[1]
-            h=self.img2.shape[0]
-            center=( int(w/2), int(h/2) )
-            lr = 2*self.ptz.ifov1*(x-center[0])/w
-            ud = 2*self.ptz.ifov2*(y-center[1])/h
-            #print('center=',center,'lr=',lr,'ud=',ud)
-            self.ptz.rel_move(lr,ud)
+            if self.ptz:
+                #print('MouseCB: Left Button DOUBLE CLOCK:',x, y, flags, param)
+                w=self.img2.shape[1]
+                h=self.img2.shape[0]
+                center=( int(w/2), int(h/2) )
+                lr = 2*self.ptz.ifov1*(x-center[0])/w
+                ud = 2*self.ptz.ifov2*(y-center[1])/h
+                #print('center=',center,'lr=',lr,'ud=',ud)
+                self.ptz.rel_move(lr,ud)
         
         elif event == cv2.EVENT_LBUTTONDOWN:
 
