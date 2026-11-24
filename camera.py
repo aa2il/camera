@@ -6,8 +6,9 @@
 # Camera - Rev 1.0
 # Copyright (C) 2024-6 by Joseph B. Attili, joe DOT aa2il AT gmail DOT com
 #
-# Simple app to view, control and download videos for Tapo C500 Video Camera.
-# Also showing signs of working with esp32cam.
+# Simple app to view, control and download videos for Tapo C500 and ESP32-cam
+# Video Cameras.  This version support multiple cameras and is a work
+# in progress.
 #
 # The code for downloading is based on pytapo by Juraj Nyiri found at 
 #         https://github.com/JurajNyiri
@@ -32,9 +33,7 @@
 #
 ################################################################################
 
-import argparse
-import sys
-import os
+import sys,os
 import datetime
 import subprocess
 import cv2
@@ -42,76 +41,51 @@ from tapoC500 import TapoC500
 import time
 from settings import CONFIG_PARAMS,SETTINGS_GUI
 from datetime import datetime
+import numpy as np
 
 from pytapo import Tapo
 from pytapo.media_stream.downloader import Downloader
 import asyncio
-import json
-
-################################################################################
-
-# Structure to contain config params
-class CAM_CONFIG_PARAMS:
-    def __init__(self,fname,CAMERA=None):
-        rcfile=os.path.expanduser(fname)
-        self.cameras=[]
-        with open(rcfile) as json_data_file:
-            cams = json.load(json_data_file)
-
-            pretty_cams = json.dumps(cams, indent=4)
-            print(pretty_cams)
-            print(len(cams))
-            
-            for cam in cams:
-                print(cam['MY_CAMERA'])
-                self.cameras.append(cam['MY_CAMERA'])
-                if cam['MY_CAMERA']==CAMERA:
-                    self.SETTINGS=cam
-                    break
-            else:
-                if CAMERA==None:
-                    self.SETTINGS=cams[0]         # Default to first camera
-                    print('\nCamera not speficied - Defaulting to',self.SETTINGS['MY_CAMERA'],'\n')
-                else:
-                    print('\nUnable to find camera',CAMERA,'\n')
-                    print('Known cameras:',self.cameras)
-                    print('cams=',cams)
-                    sys.exit(0)
-
-        # Re-write into "pretty" format
-        #with open(rcfile,'w') as json_data_file:
-        #    json.dump(cams, json_data_file, indent=4)
-        #sys.exit(0)
+from pprint import pprint
 
 ################################################################################
 
 class VIDEO_CAMERA():
-    def __init__(self,P):
+    def __init__(self,P,cam_name):
 
         self.P=P
+        self.name = cam_name
         self.step=0.1
+        self.SETTINGS=P.SETTINGS[cam]
 
-        IP=P.SETTINGS['MY_IP']
-        self.CAM_TYPE=P.SETTINGS['CAM_TYPE']
-        if 'MY_USER' in P.SETTINGS:
-            USER=P.SETTINGS['MY_USER']
-            PASSWORD=P.SETTINGS['MY_PASSWORD']
+        IP=self.SETTINGS['IP']
+        self.CAM_TYPE=self.SETTINGS['CAM_TYPE']
+        if 'USER' in self.SETTINGS:
+            USER=self.SETTINGS['USER']
+            PASSWORD=self.SETTINGS['PASSWORD']
             STREAM=None
         else:
             USER=None
             PASSWORD=None
-            STREAM=P.SETTINGS['STREAM']
+            STREAM=self.SETTINGS['STREAM']
 
         self.cross_hairs=None
         self.cross_size=50
         self.box1=None
         self.box2=None
         self.LEFT_DOWN=False
-        if 'ROTATE' in P.SETTINGS:
-            self.rotation=P.SETTINGS['ROTATE']
+        if 'ROTATE' in self.SETTINGS:
+            self.rotation=self.SETTINGS['ROTATE']
         else:
             self.rotation=None
-        
+
+        self.nframes=0
+        self.nrestarts=0
+        self.missed=0
+        self.t1=None
+        self.online=None
+        self.img2=None
+            
         # See opencv.org for details
         print('Setting up Video Camera - Press ESCAPE to exit ...')
 
@@ -129,130 +103,86 @@ class VIDEO_CAMERA():
         self.cap = cv2.VideoCapture(self.STREAM_URL)
 
         print('And away we go!')
-        self.run_camera()
+        #self.run_camera()
 
-    # Read the stream
-    def run_camera(self):
+    def get_frame(self,width=None,height=None):
+        #print('GET FRAME:',width,height)
+        
+        if self.missed>20 and not self.online:
+            return
+        ret, img = self.cap.read()
 
-        # Create window to display imagery
-        # Do it this way so we can resize it manually if we want to
-        #cam_name='frame'
-        cam_name=self.P.SETTINGS['MY_CAMERA']
-        cv2.namedWindow(cam_name, cv2.WINDOW_NORMAL)
-        first_time=True
-
-        now = datetime.now()
-        print('Camera started at',now)
-        t1 = time.perf_counter()
-
-        nframes=0
-        nrestarts=0
-        while(self.cap.isOpened()):
-            ret, img = self.cap.read()
-            nframes+=1
-            if nframes==1:
-                print('Original Dimensions : ',img.shape)
-            if nframes % 100 ==1:
-                t2 = time.perf_counter()
-                fps = round( 100./(t2-t1) , 1)
-                print('Read image',nframes,'\t',fps,'fps\tnrestarts=',nrestarts)
-                t1 = t2
-            
-            # Put frame operations here - e.g. resize
-            try:
-                # First, compute new image size ...
-                if self.CAM_TYPE=='Tapo':
-                    sc = 1 # 0.5
-                else:
-                    if img.shape[1]<=640:
-                        sc=2
-                    else:
-                        sc=1
-                width = int(sc*img.shape[1])
-                height = int(sc*img.shape[0])
-                missed=0
-            except:
-                # If the camera has been turned off, try again
-                # If too many retries, exit gracefully
-                missed+=1
-                print('Whoops - missed image???!!!  nframes=',nframes,'\tmissed=',missed)
-                if missed<20:
-                    continue
-                else:
-                    print('*** Camera probably disconeected ***')
-                    nrestarts+=1
-                    if nrestarts<50:
-                        print('Re-opening video stream in 10 secs ...',self.STREAM_URL)
-                        self.cap.release()
-                        time.sleep(10)
-                        self.cap = cv2.VideoCapture(self.STREAM_URL)
-                        continue
-                    else:
-                        print('*** Too many restarts - Bailing out! ***')
-                        break
-
-            # Do the actual resizing & rotation
-            dim = (width, height)
-            self.img2 = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
-            if self.rotation in ['CW','90']:
-                self.img2 = cv2.rotate(self.img2, cv2.ROTATE_90_CLOCKWISE)
-            elif self.rotation in ['CCW','-90']:
-                self.img2 = cv2.rotate(self.img2, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            elif self.rotation=='180':
-                self.img2 = cv2.rotate(self.img2, cv2.ROTATE_180)
-            #print('Resized Dimensions : ',img2.shape)
-            
-            # Add box/cross-hairs
-            if self.LEFT_DOWN:
-                self.DrawBox()
-                self.cross_hairs=None
+        # Check for failure
+        if img is not None:
+            self.missed=0
+            self.online=True
+        elif self.online==None:
+            self.online=False
+            self.img2=np.zeros((height,width,3),np.uint8)
+            return
+        else:
+            # If the camera has been turned off, try again
+            # If too many retries, exit gracefully
+            self.missed+=1
+            if self.missed<20:
+                print(self.name,':\tWhoops - missed image???!!!  nframes=',
+                      self.nframes,'\tmissed=',self.missed)
+                self.img2=np.zeros((height,width,3),np.uint8)
+                return
             else:
-                if self.cross_hairs:
-                    self.DrawCrossHairs()
-                    
-            # Display the frame
-            cv2.imshow(cam_name, self.img2)
-            if first_time:
-                cv2.resizeWindow(cam_name,width,height)
-                #sz=cv2.getWindowImageRect(cam_name)
-                #print(sz,width,height)
-                first_time=False
-
-            # Enable mouse callback
-            cv2.setMouseCallback(cam_name, self.MouseCB)
-
-            # Check for clean exit
-            ch = cv2.waitKey(20) # & 0xFF
-            if ch>0:
-                print('ch=',ch)
-                if ch==82 and self.ptz:
-                    self.ptz.rel_move(0,-self.step)
-                elif ch==84 and self.ptz:
-                    self.ptz.rel_move(0,self.step)
-                elif ch==81 and self.ptz:
-                    self.ptz.rel_move(-self.step,0)
-                elif ch==83 and self.ptz:
-                    self.ptz.rel_move(self.step,0)
-                elif ch in [27,ord('q'),ord('Q')]:
-                    break
+                if not self.online:
+                    return
+                print('*** Camera probably disconeected ***')
+                self.nrestarts+=1
+                if self.nrestarts<50:
+                    print('Re-opening video stream in 10 secs ...',self.STREAM_URL)
+                    self.cap.release()
+                    time.sleep(10)
+                    self.cap = cv2.VideoCapture(self.STREAM_URL)
+                    self.img2=np.zeros((height,width,3),np.uint8)
+                    return
+                else:
+                    print('*** Too many restarts - Bailing out! ***')
+                    self.cap.release()
+                    return
+        
+        self.nframes+=1
+        if self.nframes==1:
+            self.t1 = time.perf_counter()
+            print(self.name,':\tOriginal Dimensions : ',img.shape,type(img))
+        if self.nframes % 100 ==1:
+            t2 = time.perf_counter()
+            fps = round( 100./(t2-self.t1) , 1)
+            print(self.name,':\tRead image',self.nframes,'\t',fps,'fps\tnrestarts=',self.nrestarts)
+            self.t1 = t2
             
-            # Check for click on big X to exit also
-            try:
-                #print(cam_name)
-                if cv2.getWindowProperty(cam_name,cv2.WND_PROP_VISIBLE) <= 0:
-                    print('Blah blah blah')
-                    break
-            except:
-                print('Bailing out!')
-                break
+        # Put frame operations here - e.g. resize
+        if width==None:
+            width = img.shape[1]
+        if height==None:
+            height = img.shape[0]
+        
+        # Do the actual resizing & rotation
+        dim = (width, height)
+        self.img2 = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
+        if self.rotation in ['CW','90']:
+            self.img2 = cv2.rotate(self.img2, cv2.ROTATE_90_CLOCKWISE)
+        elif self.rotation in ['CCW','-90']:
+            self.img2 = cv2.rotate(self.img2, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        elif self.rotation=='180':
+            self.img2 = cv2.rotate(self.img2, cv2.ROTATE_180)
+        if self.nframes==1:
+            print('Resized Dimensions : ',self.img2.shape)
             
-        # Clean-up and quit
-        print('Cleaning up ...')
-        self.cap.release()
-        cv2.destroyAllWindows()
-        now = datetime.now()
-        print('Camera done at',now)        
-
+        # Add box/cross-hairs
+        if self.LEFT_DOWN:
+            self.DrawBox()
+            self.cross_hairs=None
+        else:
+            if self.cross_hairs:
+                self.DrawCrossHairs()
+                
+        
     ############################################################################
     
     def MouseCB(self,event, x, y, flags, param):
@@ -268,8 +198,7 @@ class VIDEO_CAMERA():
             else:
                 self.cross_hairs=(x,y)
                 #DrawCrossHairs(imgCopy,cross_hairs,cross_size)
-            cam_name=self.P.SETTINGS['MY_CAMERA']
-            cv2.imshow(cam_name, imgCopy)
+            cv2.imshow(self.name, imgCopy)
 
         elif event == cv2.EVENT_LBUTTONDBLCLK:
 
@@ -346,7 +275,142 @@ class VIDEO_CAMERA():
         cv2.line(self.img2, p1, p2, c, thickness=th)
         cv2.line(self.img2, p3, p4, c, thickness=th)
 
-################################################################################
+############################################################################
+        
+# Read the streams
+def run_cameras(video_cams):
+
+    # Create window to display imagery
+    # Do it this way so we can resize it manually if we want to
+    cam_name=''
+    for vc in video_cams:
+        cam_name+=vc.name
+    cv2.namedWindow(cam_name, cv2.WINDOW_NORMAL)
+    first_time=True
+
+    now = datetime.now()
+    print('Camera started at',now)
+
+    # Determine desired image sizes
+    ncams=len( video_cams )
+    if ncams==1:
+        width=None
+        height=None
+    elif ncams<=6:
+        width=640
+        height=480
+    elif ncams<=9:
+        width=640
+        height=480
+        #width=320
+        #height=240
+    else:
+        print('Too many cameras!',ncams)
+        sys.exit(0)
+
+    # Enable mouse callback - need to revisit this for multi cams
+    if ncams==1:
+        vc=video_cams[0]
+        cv2.setMouseCallback(vc.name, vc.MouseCB)
+        
+    Done=False
+    while(not Done):
+        
+        # Get a frame from each camera
+        for vc in video_cams:
+            vc.get_frame(width,height)
+            if not vc.cap.isOpened():
+                if ncams==1:
+                    print('Camera has closed:',vc.name)
+                    print('Bailing out!')
+                    Done = True
+
+        # Compose composite image
+        if ncams==1:
+            img =video_cams[0].img2
+        else:
+            img1=video_cams[0].img2
+            img2=video_cams[1].img2
+            if ncams==2:
+                img = cv2.hconcat([img1, img2])
+            else:
+                img3=video_cams[2].img2
+                if ncams>=4:
+                    img4=video_cams[3].img2
+                else:
+                    img4=0*img3
+                if ncams in [3,4]:
+                    img = cv2.vconcat([
+                        cv2.hconcat([img1, img2]),
+                        cv2.hconcat([img3, img4]) ])
+                else:
+                    img5=video_cams[4].img2
+                    if ncams>=6:
+                        img6=video_cams[5].img2
+                    else:
+                        img6=0*img5
+                    if ncams in [5,6]:
+                        img = cv2.vconcat([
+                            cv2.hconcat([img1, img2, img3]),
+                            cv2.hconcat([img4, img5, img6]) ])
+                    else:
+                        img7=video_cams[6].img2
+                        if ncams>=8:
+                            img8=video_cams[7].img2
+                        else:
+                            img8=0*img7
+                        if ncams>=9:
+                            img9=video_cams[8].img2
+                            img = cv2.vconcat([
+                                cv2.hconcat([img1, img2, img3]),
+                                cv2.hconcat([img4, img5, img6]),
+                                cv2.hconcat([img7, img8, img9]) ])
+                        else:
+                            img9=0*img8
+                            img = cv2.vconcat([
+                                cv2.hconcat([img1, img2, img3, img4]),
+                                cv2.hconcat([img5, img6, img7, img8]) ])
+            
+        # Display the composite frame
+        cv2.imshow(cam_name,img)
+        if first_time:
+            cv2.resizeWindow(cam_name,img.shape[1],img.shape[0])
+            first_time=False
+
+        # Check for clean exit
+        ch = cv2.waitKey(20) # & 0xFF
+        if ch>0:
+            print('ch=',ch)
+            if ch==82 and vc.ptz:
+                vc.ptz.rel_move(0,-vc.step)
+            elif ch==84 and vc.ptz:
+                vc.ptz.rel_move(0,vc.step)
+            elif ch==81 and vc.ptz:
+                vc.ptz.rel_move(-vc.step,0)
+            elif ch==83 and vc.ptz:
+                vc.ptz.rel_move(vc.step,0)
+            elif ch in [27,ord('q'),ord('Q')]:
+                Done = True
+                #break
+            
+        # Check for click on big X to exit also
+        try:
+            #print(cam_name)
+            if cv2.getWindowProperty(cam_name,cv2.WND_PROP_VISIBLE) <= 0:
+                print('Blah blah blah')
+                break
+        except:
+            print('Bailing out!')
+            break
+            
+    # Clean-up and quit
+    print('Cleaning up ...')
+    vc.cap.release()
+    cv2.destroyAllWindows()
+    now = datetime.now()
+    print('Camera done at',now)        
+
+############################################################################
 
 class VIDEO_DOWNLOADER():
     def __init__(self,P,date,outDir=''):
@@ -354,13 +418,13 @@ class VIDEO_DOWNLOADER():
         self.outputDir = outDir    # directory path where videos will be saved
         self.date = date           # date to download recordings for in format YYYYMMDD
         
-        self.host = P.SETTINGS['MY_IP']
-        self.user = P.SETTINGS['MY_USER']
-        #self.user = P.SETTINGS['MY_CLOUD_USER']
+        self.host = self.SETTINGS['IP']
+        self.user = self.SETTINGS['USER']
+        #self.user = self.SETTINGS['CLOUD_USER']
         #self.user = "admin" 
         #self.user = "joeattili" 
-        self.password = P.SETTINGS['MY_PASSWORD']
-        self.password2 = P.SETTINGS['MY_CLOUD_PASSWORD']
+        self.password = self.SETTINGS['PASSWORD']
+        self.password2 = self.SETTINGS['CLOUD_PASSWORD']
         self.ctrl_port = 443
         #self.ctrl_port = 2020
         #self.ctrl_port = 8800
@@ -458,30 +522,19 @@ def find_camera(mac):
 if __name__ == '__main__':
 
     from tkinter import mainloop
+    from params import *
 
     print(" ")
 
     # Command line args
-    arg_proc = argparse.ArgumentParser()
-    arg_proc.add_argument("-cam", help="Camera Name",
-                          type=str,default=None)
-    arg_proc.add_argument("-download", help="Download videos for given date YYYYMMDD",
-                          type=str,default=None,nargs="*")
-    arg_proc.add_argument('-settings', action='store_true',
-                              help='Update Camera Settings')
-    args = arg_proc.parse_args()
-
-    # Handle resource file (settings) - there is a single rc file for all cams
-    P=CAM_CONFIG_PARAMS("~/.camerarc",args.cam)
-    
-    #print(P)
-    print(P.SETTINGS)
-    print(P.SETTINGS['MY_IP'])
+    P=PARAMS()
+    print('P=',P)
+    pprint(vars(P))
     #sys.exit(0)
 
     # Open dialog to change camera settings
     # Need to revise this for multiple cams in single rc file
-    if args.settings:
+    if P.UPDATE_SETTINGS:
         print('*** NEED TO REVISIT THIS CODE FOR MULTIPLE CAMERAS !!! ***')
         sys.exit(0)
         P.SettingsWin = SETTINGS_GUI(None,P,ATTRS)
@@ -489,16 +542,20 @@ if __name__ == '__main__':
         sys.exit(0)
 
     # Try to find the camera
-    if True:
-        ip=find_camera(P.SETTINGS['MY_MAC'])
-        if P.SETTINGS['MY_IP']!=ip:
+    if False:
+        cam=P.CAMS
+        print('cam=',cam)
+        SETTINGS=P.SETTINGS[cam]
+        print(SETTINGS)
+        ip=find_camera(P.SETTINGS[cam]['MAC'])
+        if P.SETTINGS[cam]['IP']!=ip:
             print("Whoops - LAN device IP doesn't match settings:")
-            print('ip=',ip,'\tconfigured=',P.SETTINGS['MY_IP'])
+            print('ip=',ip,'\tconfigured=',P.SETTINGS[cam]['IP'])
             print('Fix this!!!')
-            #sys.exit(0)
+            sys.exit(0)
 
     # Download videos
-    if args.download!=None:
+    if P.DOWNLOAD!=None:
         print('dl=',args.download)
         if len(args.download)>0:
             date = args.download[0]
@@ -508,8 +565,16 @@ if __name__ == '__main__':
         downloader=VIDEO_DOWNLOADER(P,date)
         sys.exit(0)
 
-    # View and control camera in real-time
-    camera=VIDEO_CAMERA(P)
+    # View and control cameras in real-time
+    cameras=[]
+    for cam in P.CAMS:
+        vc = VIDEO_CAMERA(P,cam)
+        ret, img = vc.cap.read()
+        if img is not None:
+            cameras.append( vc )
+        else:
+            print('Unable to open camera',vc.name)
+    run_cameras(cameras)
     
     print("\nThat's All Folks!\n")
 
