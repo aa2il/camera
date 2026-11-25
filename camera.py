@@ -39,7 +39,7 @@ import subprocess
 import cv2
 from tapoC500 import TapoC500
 import time
-from settings import CONFIG_PARAMS,SETTINGS_GUI
+#from settings import CONFIG_PARAMS,SETTINGS_GUI
 from datetime import datetime
 import numpy as np
 
@@ -413,65 +413,79 @@ def run_cameras(video_cams):
 ############################################################################
 
 class VIDEO_DOWNLOADER():
-    def __init__(self,P,date,outDir=''):
+    def __init__(self,P,cam,date,outDir='recordings'):
 
         self.outputDir = outDir    # directory path where videos will be saved
         self.date = date           # date to download recordings for in format YYYYMMDD
-        
-        self.host = self.SETTINGS['IP']
-        self.user = self.SETTINGS['USER']
-        #self.user = self.SETTINGS['CLOUD_USER']
-        #self.user = "admin" 
-        #self.user = "joeattili" 
-        self.password = self.SETTINGS['PASSWORD']
+
+        self.SETTINGS  = P.SETTINGS[cam]
+        self.host      = self.SETTINGS['IP']
+        self.user      = self.SETTINGS['USER']
+        self.user2     = self.SETTINGS['CLOUD_USER']
+        self.password  = self.SETTINGS['PASSWORD']
         self.password2 = self.SETTINGS['CLOUD_PASSWORD']
         self.ctrl_port = 443
-        #self.ctrl_port = 2020
-        #self.ctrl_port = 8800
         
         self.window_size = 50
 
         if True:
-            print('host=',self.host,len(self.host))
-            print('user=',self.user,len(self.user))
-            print('password=',self.password,len(self.password))
-            print('password2=',self.password2)
+            print('host           =',self.host,len(self.host))
+            print('user           =',self.user,len(self.user))
+            print('password       =',self.password,len(self.password))
+            print('cloud user     =',self.user2,len(self.user2))
+            print('cloud password =',self.password2)
             #sys.exit(0)
         
         print("Connecting to camera...")
-        self.tapo = Tapo(self.host, self.user, self.password, self.password,
-                         printDebugInformation=True,
-                         controlPort=self.ctrl_port,
-                         redactConfidentialInformation=False)
-        sys.exit(0)
+        if 0:
+            # Orig - doesn't work
+            self.tapo = Tapo(self.host, self.user2, self.password2, self.password2,
+                             printDebugInformation=True,
+                             controlPort=self.ctrl_port,
+                             redactConfidentialInformation=False)
+        elif 0:
+            # Works with older cams
+            self.tapo = Tapo(self.host, self.user2, self.password2, self. password2)
+        else:
+            # Works with both older & newer cams
+            # If there is a problem, try updating pytapo, e.g. uvinit
+            #self.tapo = Tapo(self.host, "admin", self.password2)
+            self.tapo = Tapo(self.host, "admin", self.password2, cloudPassword=self.password2)
+        #sys.exit(0)
         print('Getting basic data...')
         print('\nBasic Camera Info:',self.tapo.basicInfo)
-        sys.exit(0)
+        #sys.exit(0)
 
         self.get_recording_list()
         #sys.exit(0)
+        return
 
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.download_async())
+        loop.run_until_complete(self.download_recordings())
 
     def get_recording_list(self):
         print("\nGetting recordings...")
         self.recordings = self.tapo.getRecordings(self.date)
-        print('\nRecordings=',self.recordings)
+        #print('\nRecordings=',self.recordings)
+        print(f"Found {len(self.recordings)} recordings")
+        for rec in self.recordings:
+            print(rec)
+        
         self.timeCorrection = self.tapo.getTimeCorrection()
         print('\nTime Correction=',self.timeCorrection)
 
         total=0
+        print('\tkey\t\t\tt1\tt2\t\tdt\t\tdt/60')
         for rec in self.recordings:
             for key in rec:
                 t1=rec[key]["startTime"]
                 t2=rec[key]["endTime"]
                 dt=t2-t1
                 total+=dt
-                print('\t',key,t1,t2,dt,dt/60)
+                print(key,'\t',t1,'\t',t2,'\t',dt,'\t',dt/60)
         print('\nTotal of',total,' secs available =',total/60.,'min =',total/3600.,'hours')
             
-    async def download_async(self):
+    async def download_recordings(self):
         for rec in self.recordings:
             print('\nDownloading',rec,' ...')
             for key in rec:
@@ -556,13 +570,16 @@ if __name__ == '__main__':
 
     # Download videos
     if P.DOWNLOAD!=None:
-        print('dl=',args.download)
-        if len(args.download)>0:
-            date = args.download[0]
+        print('dl=',P.DOWNLOAD)
+        print('cams=',P.CAMS)
+        if len(P.DOWNLOAD)>0:
+            date = P.DOWNLOAD[0]
         else:
             date=datetime.strftime(datetime.now(),'%Y%m%d')
         print('date=',date)
-        downloader=VIDEO_DOWNLOADER(P,date)
+        for cam in P.CAMS:
+            downloader=VIDEO_DOWNLOADER(P,cam,date)
+            asyncio.run(downloader.download_recordings())
         sys.exit(0)
 
     # View and control cameras in real-time

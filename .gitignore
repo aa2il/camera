@@ -8,3 +8,5 @@
 /#*
 /pytapo/media_stream/__pycache__/*
 /OLD/*
+/recordings/*
+/DownloadWork.py

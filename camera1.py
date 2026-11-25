@@ -6,8 +6,7 @@
 # Camera - Rev 0.2
 # Copyright (C) 2024-6 by Joseph B. Attili, joe DOT aa2il AT gmail DOT com
 #
-# Simple app to view, control and download videos for Tapo C500 Video Camera.
-# Also showing signs of working with esp32cam.
+# Simple app to view, control and download videos for Tapo C500 Video Camera. showing signs of working with esp32cam.
 #
 # This is the original code for a single camera and is OBE.
 #
@@ -356,38 +355,38 @@ class VIDEO_DOWNLOADER():
         self.outputDir = outDir    # directory path where videos will be saved
         self.date = date           # date to download recordings for in format YYYYMMDD
         
-        self.host = P.SETTINGS['IP']
-        self.user = P.SETTINGS['USER']
-        #self.user = P.SETTINGS['CLOUD_USER']
-        #self.user = "admin" 
-        #self.user = "joeattili" 
-        self.password = P.SETTINGS['PASSWORD']
+        self.host      = P.SETTINGS['IP']
+        self.user      = P.SETTINGS['USER']
+        self.user2     = P.SETTINGS['CLOUD_USER']
+        self.password  = P.SETTINGS['PASSWORD']
         self.password2 = P.SETTINGS['CLOUD_PASSWORD']
         self.ctrl_port = 443
-        #self.ctrl_port = 2020
-        #self.ctrl_port = 8800
         
         self.window_size = 50
 
         if True:
-            print('host=',self.host,len(self.host))
-            print('user=',self.user,len(self.user))
-            print('password=',self.password,len(self.password))
-            print('password2=',self.password2)
+            print('host           =',self.host,len(self.host))
+            print('user           =',self.user,len(self.user))
+            print('password       =',self.password,len(self.password))
+            print('cloud user     =',self.user2,len(self.user2))
+            print('cloud password =',self.password2)
             #sys.exit(0)
         
         print("Connecting to camera...")
-        self.tapo = Tapo(self.host, self.user, self.password, self.password,
-                         printDebugInformation=True,
-                         controlPort=self.ctrl_port,
-                         redactConfidentialInformation=False)
-        sys.exit(0)
+        if 0:
+            self.tapo = Tapo(self.host, self.user2, self.password2, self.password2,
+                             printDebugInformation=True,
+                             controlPort=self.ctrl_port,
+                             redactConfidentialInformation=False)
+        else:
+            self.tapo = Tapo(self.host, self.user2, self.password2, self. password2)
+        #sys.exit(0)
         print('Getting basic data...')
         print('\nBasic Camera Info:',self.tapo.basicInfo)
-        sys.exit(0)
+        #sys.exit(0)
 
         self.get_recording_list()
-        #sys.exit(0)
+        sys.exit(0)
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.download_async())
@@ -395,18 +394,23 @@ class VIDEO_DOWNLOADER():
     def get_recording_list(self):
         print("\nGetting recordings...")
         self.recordings = self.tapo.getRecordings(self.date)
-        print('\nRecordings=',self.recordings)
+        #print('\nRecordings=',self.recordings)
+        print(f"Found {len(self.recordings)} recordings")
+        for rec in self.recordings:
+            print(rec)
+        
         self.timeCorrection = self.tapo.getTimeCorrection()
         print('\nTime Correction=',self.timeCorrection)
 
         total=0
+        print('\tkey\t\t\tt1\tt2\t\tdt\t\tdt/60')
         for rec in self.recordings:
             for key in rec:
                 t1=rec[key]["startTime"]
                 t2=rec[key]["endTime"]
                 dt=t2-t1
                 total+=dt
-                print('\t',key,t1,t2,dt,dt/60)
+                print(key,'\t',t1,'\t',t2,'\t',dt,'\t',dt/60)
         print('\nTotal of',total,' secs available =',total/60.,'min =',total/3600.,'hours')
             
     async def download_async(self):

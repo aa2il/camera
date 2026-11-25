@@ -36,7 +36,7 @@ echo OLD=$old
 #set old='save45'
 
 rm -f DIFFS
-foreach i (*.py DIFF *.bat *.txt *.md dist/*.iss ~/.camerarc)
+foreach i (*.py DIFF *.bat *.txt *.md dist/*.iss ../../.camerarc)
     echo $i
     set n=`diff -w $old/$i $i | wc -l`
     if( !( -e $old/$i ) )then
@@ -54,7 +54,7 @@ foreach i (*.py DIFF *.bat *.txt *.md dist/*.iss ~/.camerarc)
     endif
 end
 
-chmod +x wclock*.py DIFF
+chmod +x camera*.py DIFF
 
 #cat DIFFS
 set f=`basename $ROOT`

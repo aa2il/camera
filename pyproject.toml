@@ -3,15 +3,15 @@ name = "camera"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
-    "aiofiles>=24.1.0",
+    "aiofiles>=25.1.0",
     "onvif-zeep>=0.2.12",
-    "opencv-python>=4.12.0.88",
-    "psutil>=7.0.0",
-    "pycryptodome>=3.23.0",
+    "opencv-python>=5.1.0.95",
+    "psutil>=7.2.2",
+    "pycryptodome>=4.6.0",
     "pyserial>=3.5",
-    "pytapo[full]>=3.3.49",
+    "pytapo>=3.4.40",
     "rtp>=0.0.4",
-    "scapy>=2.6.1",
+    "scapy>=2.8.0",
 ]

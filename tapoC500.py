@@ -2,7 +2,7 @@
 ############################################################################################
 #
 # tapoC500.py - Rev 0.1
-# Copyright (C) 2024-5 by Joseph B. Attili, joe DOT aa2il AT gmail DOT com
+# Copyright (C) 2024-6 by Joseph B. Attili, joe DOT aa2il AT gmail DOT com
 #
 # PTZ control for Tapo C500 Camera.  This camera is an ONVIF Profile S device.
 #
