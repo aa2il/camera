@@ -11,7 +11,8 @@ dependencies = [
     "psutil>=7.2.2",
     "pycryptodome>=4.6.0",
     "pyserial>=3.5",
-    "pytapo>=3.4.40",
+    "pytapo>=3.4.42",
     "rtp>=0.0.4",
     "scapy>=2.8.0",
+    "tapo>=0.13.0",
 ]

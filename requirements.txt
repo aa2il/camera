@@ -34,6 +34,7 @@ psutil
 #scapy-python3
 scapy
 pytapo
+tapo                  # For smart buld investigations
 aiofiles
 
 # Not sure what the status of these libs is but at one points needed them also - TBD
@@ -42,7 +43,3 @@ aiofiles
 pyserial                  # Bx of settings - might be able to eleinate this
 #pillow
 #beautifulsoup4
-
-
-
-

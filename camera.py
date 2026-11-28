@@ -34,7 +34,6 @@
 ################################################################################
 
 import sys,os
-import datetime
 import subprocess
 import cv2
 from tapoC500 import TapoC500
@@ -42,6 +41,8 @@ import time
 #from settings import CONFIG_PARAMS,SETTINGS_GUI
 from datetime import datetime
 import numpy as np
+#from utils import *
+from tapo_discover import *
 
 from pytapo import Tapo
 from pytapo.media_stream.downloader import Downloader
@@ -56,7 +57,15 @@ class VIDEO_CAMERA():
         self.P=P
         self.name = cam_name
         self.step=0.1
-        self.SETTINGS=P.SETTINGS[cam]
+
+        # Aliases, for now
+        cam_name=cam_name.replace(' ','').replace('BarnAisle','Aisle')
+        #if cam_name=='BarnAisle':
+        #    cam_name='Aisle'
+        #elif cam_name=='Front Door':
+        #    cam_name='Frontdoor'
+        print(cam_name)
+        self.SETTINGS=P.SETTINGS[cam_name]
 
         IP=self.SETTINGS['IP']
         self.CAM_TYPE=self.SETTINGS['CAM_TYPE']
@@ -288,8 +297,7 @@ def run_cameras(video_cams):
     cv2.namedWindow(cam_name, cv2.WINDOW_NORMAL)
     first_time=True
 
-    now = datetime.now()
-    print('Camera started at',now)
+    print('Camera started at',datetime.now())
 
     # Determine desired image sizes
     ncams=len( video_cams )
@@ -407,18 +415,25 @@ def run_cameras(video_cams):
     print('Cleaning up ...')
     vc.cap.release()
     cv2.destroyAllWindows()
-    now = datetime.now()
-    print('Camera done at',now)        
+    print('Camera done at',datetime.now())
 
 ############################################################################
 
 class VIDEO_DOWNLOADER():
     def __init__(self,P,cam,date,outDir='recordings'):
 
-        self.outputDir = outDir    # directory path where videos will be saved
         self.date = date           # date to download recordings for in format YYYYMMDD
 
         self.SETTINGS  = P.SETTINGS[cam]
+        self.CAM_TYPE=self.SETTINGS['CAM_TYPE'] 
+        if self.CAM_TYPE!='Tapo':
+            print('\n*** Recordings only supported for Tapo cameras ***')
+            self.recordings = None
+            return
+        
+        self.outputDir = outDir    # directory path where videos will be saved
+        os.makedirs(outDir, exist_ok=True)       # Make sure it exists
+
         self.host      = self.SETTINGS['IP']
         self.user      = self.SETTINGS['USER']
         self.user2     = self.SETTINGS['CLOUD_USER']
@@ -475,14 +490,15 @@ class VIDEO_DOWNLOADER():
         print('\nTime Correction=',self.timeCorrection)
 
         total=0
-        print('\tkey\t\t\tt1\tt2\t\tdt\t\tdt/60')
+        print('\tkey\t\t\tt1\t\t\tt2\t\tdt\tdt/60')
         for rec in self.recordings:
             for key in rec:
-                t1=rec[key]["startTime"]
-                t2=rec[key]["endTime"]
+                t1=rec[key]["startTime"] 
+                t2=rec[key]["endTime"]  
                 dt=t2-t1
                 total+=dt
-                print(key,'\t',t1,'\t',t2,'\t',dt,'\t',dt/60)
+                print(key,'\t',datetime.fromtimestamp(t1),'\t',datetime.fromtimestamp(t2),
+                      '\t',dt,'\t',dt/60)
         print('\nTotal of',total,' secs available =',total/60.,'min =',total/3600.,'hours')
             
     async def download_recordings(self):
@@ -568,30 +584,54 @@ if __name__ == '__main__':
             print('Fix this!!!')
             sys.exit(0)
 
-    # Download videos
+    # Find all the cameras - experimental for now
+    # Eventually, should be able to slim down .rc file significantly since most info can
+    # be obtained directly from the cameras
+    if True:
+        P.CLOUD_USER,P.CLOUD_PASSWORD,IP=read_cam_rcfile("~/.camerarc")
+        print(P.CLOUD_USER,'\t',P.CLOUD_PASSWORD,'\t',IP)
+        Devices=asyncio.run( find_tapo(P.CLOUD_USER,P.CLOUD_PASSWORD,IP) )   # "192.168.0.255") )
+        print('\nDevices=',Devices)        
+        Cameras,Bulbs,Plugs,Other = sort_devices(Devices)
+        print('\nCameras=',Cameras)
+        if P.CAMS==None:
+            P.CAMS=[]
+            for cam in Cameras:
+                P.CAMS.append( cam['NAME'] )
+        
+        #sys.exit(0)
+
+    # View and control cameras and/or download recorded videos
+    cameras=[]
+    print('cams=',P.CAMS)
     if P.DOWNLOAD!=None:
-        print('dl=',P.DOWNLOAD)
-        print('cams=',P.CAMS)
         if len(P.DOWNLOAD)>0:
             date = P.DOWNLOAD[0]
         else:
             date=datetime.strftime(datetime.now(),'%Y%m%d')
         print('date=',date)
-        for cam in P.CAMS:
-            downloader=VIDEO_DOWNLOADER(P,cam,date)
-            asyncio.run(downloader.download_recordings())
-        sys.exit(0)
-
-    # View and control cameras in real-time
-    cameras=[]
     for cam in P.CAMS:
-        vc = VIDEO_CAMERA(P,cam)
-        ret, img = vc.cap.read()
-        if img is not None:
-            cameras.append( vc )
+        
+        if P.DOWNLOAD==None:
+            
+            # Open this camera for viewing
+            vc = VIDEO_CAMERA(P,cam)
+            ret, img = vc.cap.read()
+            if img is not None:
+                cameras.append( vc )
+            else:
+                print('Unable to open camera',vc.name)
+                
         else:
-            print('Unable to open camera',vc.name)
-    run_cameras(cameras)
+            
+            # Download recordings from this camera
+            dl=VIDEO_DOWNLOADER(P,cam,date,outDir='recordings/'+cam)
+            if dl.recordings!=None and False:
+                asyncio.run(dl.download_recordings())
+
+    # View cams in real-time
+    if P.DOWNLOAD==None:
+        run_cameras(cameras)
     
     print("\nThat's All Folks!\n")
 

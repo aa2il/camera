@@ -67,5 +67,5 @@ class PARAMS:
         self.SETTINGS = read_camerarc("~/.camerarc")
 
         # Expand camera group
-        if len( self.CAMS )==1 and "GROUP" in self.SETTINGS[self.CAMS[0]]:
+        if self.CAMS and len( self.CAMS )==1 and "GROUP" in self.SETTINGS[self.CAMS[0]]:
             self.CAMS=self.SETTINGS[self.CAMS[0]]["GROUP"]
